@@ -192,7 +192,7 @@ INSERT INTO Indirizzo VALUES (@TipoIndirizzo, @Città, @Via, @NumCivico, @CAP, @P
 EXECUTE AggiungiIndirizzo 10, 'Domicilio', 'Caserta', 'San Giuseppe', 7, 88090, 'CE', 'Italia'
 
 
-
+--------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE CreazioneOrdineProvvisorio
 @CodiceCliente INT
@@ -207,7 +207,7 @@ EXECUTE CreazioneOrdineProvvisorio 4
 SELECT *
 FROM Ordine
 
-
+--------------------------------------------------------------------
 CREATE PROCEDURE AggiungiProdottoOrdine
 @CodiceOrdine INT,
 @NomeProdotto NVARCHAR(30),
@@ -266,7 +266,7 @@ END
  SELECT *
  FROM Prodotto
 
-
+ -------------------------------------------------------------------------
  CREATE PROCEDURE ModificaOrdineProvvisorio
  @CodiceOrdine INT,
  @NomeProdotto NVARCHAR(30),
@@ -332,7 +332,7 @@ FROM OrdineProdotto
 
 SELECT *
 FROM Prodotto
-
+--------------------------------------------------------------------
  CREATE PROCEDURE ConfermaOrdine
  @CodiceOrdine INT,
  @CodiceCartaPagamento NCHAR(16),
