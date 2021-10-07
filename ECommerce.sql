@@ -122,7 +122,7 @@ INSERT INTO Prodotto VALUES('Tostapane', 'Per 6 fette', 43, 140);
 INSERT INTO Prodotto VALUES('Frullatore', 'Capacit‡ 4 Litri', 62, 120);
 
 
-INSERT INTO Ordine(DataOrdine, Totale, CodiceCliente, CodiceCarta, IdIndirizzo) VALUES ('2021-10-07', 120, 4, '0562840392183759', 5);
+INSERT INTO Ordine(DataOrdine, Totale, CodiceCliente, CodiceCarta, IdIndirizzo) VALUES ('2021-10-07', 120, 4, '0562840392183759', 12);
 
 
 SELECT * FROM Cliente;
@@ -157,6 +157,9 @@ INSERT INTO Indirizzo VALUES (@TipoIndirizzo, @Citt‡, @Via, @NumCivico, @CAP, @P
 
 EXECUTE IscrizioneCliente  10, 'Michela', 'De Angelis', '1980-10-10', '0912567389120950', 'Debito', '2025-12-10', 950, 'Residenza', 'Roma', 'Trilussa', 15, 00138, 'RM', 'Italia'; ;
 
+
+SELECT *
+FROM Indirizzo
 
 ----PROCEDURA PER ASSOCIARE CARTA A CLIENTE GIA' ESISTENTE
 CREATE PROCEDURE AggiungiCarta
@@ -248,16 +251,87 @@ END
 END
 
 
- EXECUTE AggiungiProdottoOrdine 7, 'Tavolino', 4
- EXECUTE AggiungiProdottoOrdine 7, 'Lampada', 1
- EXECUTE AggiungiProdottoOrdine 7, 'Tappeto', 1
- EXECUTE AggiungiProdottoOrdine 7, 'Borraccia', 3
+ EXECUTE AggiungiProdottoOrdine 15, 'Tavolino', 4
+ EXECUTE AggiungiProdottoOrdine 15, 'Lampada', 1
+ EXECUTE AggiungiProdottoOrdine 15, 'Tappeto', 1
+ EXECUTE AggiungiProdottoOrdine 15, 'Borraccia', 3
 
 
  SELECT *
  FROM OrdineProdotto
 
+ SELECT *
+ FROM Ordine
 
+ SELECT *
+ FROM Prodotto
+
+
+ CREATE PROCEDURE ModificaOrdineProvvisorio
+ @CodiceOrdine INT,
+ @NomeProdotto NVARCHAR(30),
+ @Quantit‡ INT
+
+ AS
+ DECLARE @IdProdottoScelto INT
+ DECLARE @Stato NVARCHAR(30)
+ DECLARE @Quantit‡SceltaPrima INT
+
+ SELECT @IdProdottoScelto = p.CodiceProdotto
+ FROM Prodotto AS p
+ WHERE p.Nome = @NomeProdotto
+
+ SELECT @Stato = o.Stato
+ FROM Ordine AS o
+ WHERE o.CodiceOrdine = @CodiceOrdine
+
+ SELECT @Quantit‡SceltaPrima = op.Quantit‡
+ FROM OrdineProdotto AS op
+ WHERE op.CodiceOrdine = @CodiceOrdine AND op.CodiceProdotto = @IdProdottoScelto
+
+ BEGIN
+ IF(@Stato = 'Provvisorio') -- Acetta la modifica solo se lo stato dell'ordine non Ë su 'Confermato'
+ UPDATE OrdineProdotto SET OrdineProdotto.Quantit‡ = @Quantit‡ WHERE CodiceProdotto = @IdProdottoScelto AND CodiceOrdine = @CodiceOrdine
+
+ DECLARE @SubtotaleCalcolato DECIMAL
+ DECLARE @Quantit‡InMagazzino INT
+
+ SELECT @SubtotaleCalcolato = p.Prezzo*@Quantit‡
+ FROM Prodotto as p
+ WHERE p.CodiceProdotto = @IdProdottoScelto
+
+BEGIN
+   IF(@Quantit‡>=3)
+   SET @SubtotaleCalcolato = @SubtotaleCalcolato - (@SubtotaleCalcolato*0.1)
+END
+ 
+ SELECT @Quantit‡InMagazzino = p.Quantit‡Disponibile
+ FROM Prodotto AS p
+ WHERE p.CodiceProdotto = @IdProdottoScelto
+
+BEGIN 
+ IF(@Quantit‡ <= @Quantit‡InMagazzino)
+ UPDATE OrdineProdotto SET SubTotale = @SubtotaleCalcolato WHERE CodiceProdotto = @IdProdottoScelto AND CodiceOrdine = @CodiceOrdine
+ ELSE
+ SELECT ERROR_MESSAGE(), ERROR_LINE()
+END 
+
+ BEGIN
+ IF(@Quantit‡ <= @Quantit‡InMagazzino)
+ UPDATE Prodotto SET Quantit‡Disponibile = ((Quantit‡Disponibile + @Quantit‡SceltaPrima) - @Quantit‡) WHERE CodiceProdotto =  @IdProdottoScelto
+ ELSE 
+ SELECT ERROR_MESSAGE(), ERROR_LINE()
+
+END
+END
+
+EXECUTE ModificaOrdineProvvisorio 15, 'Tavolino', 5
+
+SELECT *
+FROM OrdineProdotto
+
+SELECT *
+FROM Prodotto
 
  CREATE PROCEDURE ConfermaOrdine
  @CodiceOrdine INT,
@@ -289,7 +363,7 @@ BEGIN
    SELECT ERROR_MESSAGE(), ERROR_LINE()
 END
 
-EXECUTE ConfermaOrdine  5, '0912567389120950', 11
+EXECUTE ConfermaOrdine 10, '0912567389120950', 11
 
 SELECT *
 FROM Ordine
