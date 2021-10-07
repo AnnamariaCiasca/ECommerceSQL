@@ -53,7 +53,7 @@ CREATE TABLE Prodotto(
 
 CREATE TABLE Ordine(
 	CodiceOrdine INT IDENTITY(1,1),
-	Stato NVARCHAR(20) NOT NULL DEFAULT 'Provvisorio',
+	Stato NVARCHAR(20),
 	DataOrdine DATE,
 	Totale DECIMAL,
 	CodiceCliente INT NOT NULL,
@@ -67,6 +67,8 @@ CREATE TABLE Ordine(
 	CONSTRAINT CHK2_Ordine CHECK (DataOrdine <= CONVERT(DATE,GETDATE())), --la data dell'ordine non può essere successiva a quella di oggi
     CONSTRAINT CHK3_Ordine CHECK (Stato = 'Provvisorio' OR Stato = 'Confermato' ),
 );
+
+ALTER TABLE Ordine ADD CONSTRAINT Ordine_stato DEFAULT 'Provvisorio' FOR Stato;
  
 CREATE TABLE OrdineProdotto(
 	CodiceOrdine INT NOT NULL,
@@ -120,7 +122,7 @@ INSERT INTO Prodotto VALUES('Tostapane', 'Per 6 fette', 43, 140);
 INSERT INTO Prodotto VALUES('Frullatore', 'Capacità 4 Litri', 62, 120);
 
 
-INSERT INTO Ordine VALUES('Provvisorio', '2021-10-07', 120, 4, '0562840392183759', 5);
+INSERT INTO Ordine(DataOrdine, Totale, CodiceCliente, CodiceCarta, IdIndirizzo) VALUES ('2021-10-07', 120, 4, '0562840392183759', 5);
 
 
 SELECT * FROM Cliente;
@@ -192,10 +194,15 @@ EXECUTE AggiungiIndirizzo 10, 'Domicilio', 'Caserta', 'San Giuseppe', 7, 88090, 
 CREATE PROCEDURE CreazioneOrdineProvvisorio
 @CodiceCliente INT
 AS
-INSERT INTO Ordine(CodiceCliente) VALUES (@CodiceCliente);
+INSERT INTO Ordine(CodiceCliente) VALUES (@CodiceCliente)
+
 
 EXECUTE CreazioneOrdineProvvisorio 10
+EXECUTE CreazioneOrdineProvvisorio 4
 
+
+SELECT *
+FROM Ordine
 
 
 CREATE PROCEDURE AggiungiProdottoOrdine
@@ -211,6 +218,7 @@ AS
  WHERE p.Nome = @NomeProdotto
 
  DECLARE @SubtotaleCalcolato DECIMAL
+ DECLARE @QuantitàInMagazzino INT
 
  SELECT @SubtotaleCalcolato = p.Prezzo*@Quantità
  FROM Prodotto as p
@@ -221,13 +229,74 @@ BEGIN
    SET @SubtotaleCalcolato = @SubtotaleCalcolato - (@SubtotaleCalcolato*0.1)
 END
  
+ SELECT @QuantitàInMagazzino = p.QuantitàDisponibile
+ FROM Prodotto AS p
+ WHERE p.CodiceProdotto = @IdProdottoScelto
+
+BEGIN 
+ IF(@Quantità <= @QuantitàInMagazzino)
  INSERT INTO OrdineProdotto VALUES (@CodiceOrdine, @IdProdottoScelto, @Quantità, @SubtotaleCalcolato)
+ ELSE
+ SELECT ERROR_MESSAGE(), ERROR_LINE()
+END 
+
+ BEGIN
+ IF(@Quantità <= @QuantitàInMagazzino)
+ UPDATE Prodotto SET QuantitàDisponibile = QuantitàDisponibile - @Quantità WHERE CodiceProdotto =  @IdProdottoScelto
+ ELSE 
+ SELECT ERROR_MESSAGE(), ERROR_LINE()
+END
 
 
+ EXECUTE AggiungiProdottoOrdine 7, 'Tavolino', 4
+ EXECUTE AggiungiProdottoOrdine 7, 'Lampada', 1
+ EXECUTE AggiungiProdottoOrdine 7, 'Tappeto', 1
+ EXECUTE AggiungiProdottoOrdine 7, 'Borraccia', 3
 
- 
- EXECUTE AggiungiProdottoOrdine 2, 'Tavolino', 4
- EXECUTE AggiungiProdottoOrdine 2, 'Lampada', 1
 
  SELECT *
  FROM OrdineProdotto
+
+
+
+ CREATE PROCEDURE ConfermaOrdine
+ @CodiceOrdine INT,
+ @CodiceCartaPagamento NCHAR(16),
+ @IdIndirizzoSpedizione INT
+
+ AS
+ DECLARE @Somma DECIMAL
+ DECLARE @SaldoCartaScelta DECIMAL
+ 
+ SELECT @Somma = SUM(SubTotale)
+ FROM OrdineProdotto AS op
+ WHERE op.CodiceOrdine = @CodiceOrdine
+
+ SELECT @SaldoCartaScelta = c.Saldo
+ FROM Carta AS c
+ WHERE CodiceCarta = @CodiceCartaPagamento
+
+BEGIN
+   IF (@SaldoCartaScelta >= @Somma)
+   UPDATE Ordine SET Stato= 'Confermato',  DataOrdine = CONVERT(DATE,GETDATE()), Totale = @Somma, CodiceCarta = @CodiceCartaPagamento, IdIndirizzo = @IdIndirizzoSpedizione
+   WHERE CodiceOrdine = @CodiceOrdine;
+   ELSE
+   SELECT ERROR_MESSAGE(), ERROR_LINE()
+
+   IF (@SaldoCartaScelta >= @Somma)
+   UPDATE Carta SET Saldo = Saldo - @Somma WHERE CodiceCarta = @CodiceCartaPagamento;
+   ELSE
+   SELECT ERROR_MESSAGE(), ERROR_LINE()
+END
+
+EXECUTE ConfermaOrdine  5, '0912567389120950', 11
+
+SELECT *
+FROM Ordine
+
+SELECT *
+FROM Prodotto
+
+SELECT *
+FROM Carta
+WHERE CodiceCarta = '0912567389120950'
